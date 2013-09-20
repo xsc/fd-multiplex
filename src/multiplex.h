@@ -55,6 +55,7 @@ void multiplex_activate_channel(Multiplex * c, unsigned char channelId, int init
 
 // -- send data; returns result of 'write'
 int multiplex_send(Multiplex * c, int channelId, char const * src, int length);
+int multiplex_send_string(Multiplex * c, int channelId, char const * str);
 
 // -- select channel; returns the channel ID (>= 0) or a status code (< 0)
 int multiplex_select(Multiplex * c, int timeoutMs);

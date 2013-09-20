@@ -6,6 +6,7 @@ int main(void) {
     char buffer[256];
     int ch = 0;
     Multiplex * m = multiplex_new(1);
+
     srand(time(0));
     while (1) {
         ch = rand()%256;

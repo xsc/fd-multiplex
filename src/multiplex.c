@@ -247,16 +247,25 @@ int multiplex_receive(Multiplex * c,
 //
 // ----------------------------------------------------------------------
 int multiplex_send(Multiplex * c, int channelId, char const * src, int length) {
+    if (c == 0 || src == 0) return -1;
+    else {
     const int len = length + 1;
     char buffer[5 + length];
-    buffer[0] = (char)((len >> 24) & 0xFF);
-    buffer[1] = (char)((len >> 16) & 0xFF);
-    buffer[2] = (char)((len >> 8) & 0xFF);
-    buffer[3] = (char)(len & 0xFF);
-    buffer[4] = (char)(channelId & 0xFF);
-    memcpy(buffer + 5, src, length);
-    return write(c->fd, buffer, 5 + length);
+        buffer[0] = (char)((len >> 24) & 0xFF);
+        buffer[1] = (char)((len >> 16) & 0xFF);
+        buffer[2] = (char)((len >> 8) & 0xFF);
+        buffer[3] = (char)(len & 0xFF);
+        buffer[4] = (char)(channelId & 0xFF);
+        memcpy(buffer + 5, src, length);
+        return write(c->fd, buffer, 5 + length);
+    }
 } 
+
+int multiplex_send_string(Multiplex * c, int channelId, char const * str) {
+    if (str == 0) return -1;
+    return multiplex_send(c, channelId, str, strlen(str));
+}
+
 // ----------------------------------------------------------------------
 //
 //   BUFFER INSPECTION
