@@ -213,7 +213,7 @@ int multiplex_receive(Multiplex * c,
     if (receiveId != channelId) return CHANNEL_IGNORED;
 
     // Copy from ChannelBuffer
-    return multiplex_read(c, channelId, 0, length);
+    return multiplex_read(c, channelId, dst, length);
 }
 
 // -- SEND
