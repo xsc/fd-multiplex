@@ -76,7 +76,6 @@ static int multiplex_reallocate_channel(MultiplexContext * c, unsigned char chan
 
         // Case 3: extend buffer
         while (allocateLen < newLen) allocateLen *= 2;
-        printf("reallocate:%d\n", allocateLen);
         buf->data = (char *)calloc(allocateLen, sizeof(char));
         if (buf->data == 0) { buf->data = tmpBuf; return 0; }
         buf->capacity = allocateLen;
@@ -194,16 +193,7 @@ int multiplex_receive(MultiplexContext * c,
     if (receiveId != channelId) return CHANNEL_IGNORED;
 
     // Copy from ChannelBuffer
-    {
-        ChannelBuffer * buf = c->channels[channelId];
-        int copyLen = length;
-        if (buf == 0) return CHANNEL_IGNORED;
-        if (buf->length < length) copyLen = buf->length;
-        memcpy(dst, buf->data + buf->offset, copyLen);
-        buf->offset += copyLen;
-        buf->length -= copyLen;
-        return copyLen;
-    }
+    return multiplex_read(c, channelId, 0, length);
 }
 
 // -- SEND
@@ -261,6 +251,8 @@ int multiplex_read(MultiplexContext * c, int channelId, char * dst, int length) 
         memcpy(dst, buf->data + buf->offset, copyLen);
         buf->offset += copyLen;
         buf->length -= copyLen;
+        buf->newData -= copyLen;
+        if (buf->newData < 0) buf->newData = 0;
         return copyLen;
     }
 }
