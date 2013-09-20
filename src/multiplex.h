@@ -73,6 +73,7 @@ char const * multiplex_get(Multiplex * c, int channelId);
 
 // -- create copy of (part of) channel buffer
 char * multiplex_copy(Multiplex * c, int channelId, int offset, int length);
+char * multiplex_copy_all(Multiplex * c, int channelId);
 
 // -- write to/read from channel buffer
 void multiplex_write(Multiplex * c, unsigned char channelId, char * data, int offset, int length);

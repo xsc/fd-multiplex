@@ -98,7 +98,11 @@ static int multiplex_reallocate_channel(Multiplex * c, unsigned char channelId, 
     }
 }
 
-// -- WRITE TO/READ FROM BUFFER
+// ----------------------------------------------------------------------
+//
+//   MODIFY BUFFER
+//
+// ----------------------------------------------------------------------
 void multiplex_write(Multiplex * c, unsigned char channelId, char * data, int offset, int length) {
     if (!multiplex_reallocate_channel(c, channelId, length)) return;
     else {
@@ -126,7 +130,21 @@ int multiplex_read(Multiplex * c, int channelId, char * dst, int offset, int len
     }
 }
 
-// -- READ FIXED LENGTH
+void multiplex_clear(Multiplex * c, int channelId) {
+    if (c == 0 || c->channels[channelId] == 0) return;
+    else {
+        ChannelBuffer * buf = c->channels[channelId];
+        buf->offset = 0;
+        buf->length = 0;
+        buf->newData = 0;
+    }
+}
+
+// ----------------------------------------------------------------------
+// 
+//   RECEIVE LOGIC
+//
+// ----------------------------------------------------------------------
 static int _fd_read(int fd, int timeoutMs, char * buffer, int length) {
     int position = 0, bytesRead = 0, selectResult = -1;
     struct timeval timeout;
@@ -150,7 +168,6 @@ static int _fd_read(int fd, int timeoutMs, char * buffer, int length) {
     return length;
 }
 
-// -- READ FROM PIPE (returns channel ID as int32; -1 for ignored data, -255 for closed pipe)
 int multiplex_select(Multiplex * c, int timeoutMs) {
     char prefixBuffer[5];
     int bytesRead = 0, dataLength = 0;
@@ -189,7 +206,6 @@ int multiplex_select(Multiplex * c, int timeoutMs) {
     return channelId;
 }
 
-// -- RECEIVE
 int multiplex_receive(Multiplex * c,
                       int timeoutMs,
                       int channelId,
@@ -225,7 +241,11 @@ int multiplex_receive(Multiplex * c,
     return multiplex_read(c, channelId, dst, offset, length);
 }
 
-// -- SEND
+// ----------------------------------------------------------------------
+//
+//   SEND LOGIC
+//
+// ----------------------------------------------------------------------
 int multiplex_send(Multiplex * c, int channelId, char const * src, int length) {
     const int len = length + 1;
     char buffer[5 + length];
@@ -237,7 +257,11 @@ int multiplex_send(Multiplex * c, int channelId, char const * src, int length) {
     memcpy(buffer + 5, src, length);
     return write(c->fd, buffer, 5 + length);
 } 
-// -- ACCESS
+// ----------------------------------------------------------------------
+//
+//   BUFFER INSPECTION
+//
+// ----------------------------------------------------------------------
 int multiplex_length(Multiplex * c, int channelId) {
     if (c == 0 || c->channels[channelId] == 0) return -1;
     return c->channels[channelId]->length;
@@ -269,12 +293,6 @@ char * multiplex_copy(Multiplex * c, int channelId, int offset, int length) {
     }
 }
 
-void multiplex_clear(Multiplex * c, int channelId) {
-    if (c == 0 || c->channels[channelId] == 0) return;
-    else {
-        ChannelBuffer * buf = c->channels[channelId];
-        buf->offset = 0;
-        buf->length = 0;
-        buf->newData = 0;
-    }
+char * multiplex_copy_all(Multiplex * c, int channelId) {
+    return multiplex_copy(c, channelId, 0, multiplex_length(c, channelId));
 }
