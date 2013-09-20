@@ -194,6 +194,7 @@ int multiplex_receive(Multiplex * c,
                       int timeoutMs,
                       int channelId,
                       char * dst,
+                      int offset,
                       int length) {
     int receiveId = CHANNEL_IGNORED;
     ChannelBuffer * buf = c == 0 ? 0 : c->channels[channelId];
@@ -202,13 +203,13 @@ int multiplex_receive(Multiplex * c,
     // Check if data is already buffered.
     if (buf != 0 && buf->length > 0) {
         if (length <= buf->length) {
-            memcpy(dst, buf->data + buf->offset, length);
+            memcpy(dst + offset, buf->data + buf->offset, length);
             buf->offset += length;
             buf->length -= length;
             return length;
         } else {
             int tmpLen = buf->length;
-            memcpy(dst, buf->data + buf->offset, tmpLen);
+            memcpy(dst + offset, buf->data + buf->offset, tmpLen);
             buf->offset = 0;
             buf->length = 0;
             return tmpLen;
@@ -221,7 +222,7 @@ int multiplex_receive(Multiplex * c,
     if (receiveId != channelId) return CHANNEL_IGNORED;
 
     // Copy from ChannelBuffer
-    return multiplex_read(c, channelId, dst, 0, length);
+    return multiplex_read(c, channelId, dst, offset, length);
 }
 
 // -- SEND
@@ -235,8 +236,7 @@ int multiplex_send(Multiplex * c, int channelId, char const * src, int length) {
     buffer[4] = (char)(channelId & 0xFF);
     memcpy(buffer + 5, src, length);
     return write(c->fd, buffer, 5 + length);
-}
-
+} 
 // -- ACCESS
 int multiplex_length(Multiplex * c, int channelId) {
     if (c == 0 || c->channels[channelId] == 0) return -1;

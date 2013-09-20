@@ -60,7 +60,7 @@ int multiplex_send(Multiplex * c, int channelId, char const * src, int length);
 int multiplex_select(Multiplex * c, int timeoutMs);
 
 // -- receive data with timeout
-int multiplex_receive(Multiplex * c, int timeoutMs, int channelId, char * dst, int length);
+int multiplex_receive(Multiplex * c, int timeoutMs, int channelId, char * dst, int offset, int length);
 
 // -- get length of channel buffer
 int multiplex_length(Multiplex * c, int channelId);
