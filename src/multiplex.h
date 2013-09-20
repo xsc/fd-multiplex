@@ -28,7 +28,7 @@
 // senders), i.e. on fragments arriving in order, we can implement
 // a multiplexing scheme.
 //
-// First, we create a "MultiplexContext" that will contain receiver buffers
+// First, we create a "Multiplex" that will contain receiver buffers
 // for each channel we want to demultiplex. We create said buffers by
 // 'activating' the channel.
 //
@@ -52,39 +52,41 @@ typedef struct ChannelBuffer {
     char newData;   // 0 = no new data since last 'select'
 } ChannelBuffer;
 
-typedef struct MultiplexContext {
+typedef struct Multiplex {
+    int fd;
     struct ChannelBuffer * channels[256];  // O(1) lookup for channels
-} MultiplexContext;
+} Multiplex;
 
 // Multiplexing Operations (these are not thread-safe!)
-MultiplexContext * multiplex_create_context();
-void multiplex_activate_channel(MultiplexContext * c, unsigned char channelId, int initialBufferSize);
+Multiplex * multiplex_new(int fd);
+void multiplex_activate_channel(Multiplex * c, unsigned char channelId, int initialBufferSize);
 
 // -- send data; returns result of 'write'
 int multiplex_send(int pipe, int channelId, char const * src, int length);
 
 // -- select channel; returns the channel ID (>= 0) or a status code (< 0)
-int multiplex_select(MultiplexContext * c, int pipe, int timeoutMs);
+int multiplex_select(Multiplex * c, int pipe, int timeoutMs);
 
 // -- receive data with timeout
-int multiplex_receive(MultiplexContext * c, int pipe, int timeoutMs, int channelId, char * dst, int length);
+int multiplex_receive(Multiplex * c, int pipe, int timeoutMs, int channelId, char * dst, int length);
 
 // -- get length of channel buffer
-int multiplex_length(MultiplexContext * c, int channelId);
+int multiplex_length(Multiplex * c, int channelId);
 
 // -- get length of data received in last select
-int multiplex_last_received(MultiplexContext * c, int channelId);
+int multiplex_last_received(Multiplex * c, int channelId);
 
 // -- get channel buffer
-char const * multiplex_get(MultiplexContext * c, int channelId);
+char const * multiplex_get(Multiplex * c, int channelId);
 
 // -- create copy of (part of) channel buffer
-char * multiplex_copy(MultiplexContext * c, int channelId, int offset, int length);
+char * multiplex_copy(Multiplex * c, int channelId, int offset, int length);
 
-// -- read from channel buffer
-int multiplex_read(MultiplexContext * c, int channelId, char * dst, int length);
+// -- write to/read from channel buffer
+void multiplex_write(Multiplex * c, unsigned char channelId, char * data, int offset, int length) {
+int multiplex_read(Multiplex * c, int channelId, char * dst, int offset, int length);
 
 // -- clear buffer
-void multiplex_clear(MultiplexContext * c, int channelId);
+void multiplex_clear(Multiplex * c, int channelId);
 
 #endif

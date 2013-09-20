@@ -28,12 +28,16 @@
 #include "multiplex.h"
 
 // -- CREATE
-MultiplexContext * multiplex_create_context() {
-    return (MultiplexContext *)calloc(1, sizeof(MultiplexContext));
+Multiplex * multiplex_new(int fd) {
+    Multiplex * m = (Multiplex *)calloc(1, sizeof(Multiplex));
+    if (m != 0) {
+        m->fd = fd;
+    }
+    return m;
 }
 
 // -- ACTIVATE CHANNEL
-void multiplex_activate_channel(MultiplexContext * c, unsigned char channelId, int initialBufferSize) {
+void multiplex_activate_channel(Multiplex * c, unsigned char channelId, int initialBufferSize) {
     if (c == 0 || c->channels[channelId] != 0) return;
     else {
         ChannelBuffer * buf = (ChannelBuffer *)calloc(1, sizeof(ChannelBuffer));
@@ -51,7 +55,7 @@ void multiplex_activate_channel(MultiplexContext * c, unsigned char channelId, i
 }
 
 // -- REALLOCATE BUFFER
-static int multiplex_reallocate_channel(MultiplexContext * c, unsigned char channelId, int additionalDataSize) {
+static int multiplex_reallocate_channel(Multiplex * c, unsigned char channelId, int additionalDataSize) {
     if (c == 0 || c->channels[channelId] == 0) return 0;
     else {
         ChannelBuffer * buf = c->channels[channelId];
@@ -85,8 +89,8 @@ static int multiplex_reallocate_channel(MultiplexContext * c, unsigned char chan
     }
 }
 
-// -- WRITE TO BUFFER
-static void multiplex_buffer(MultiplexContext * c, unsigned char channelId, char * data, int offset, int length) {
+// -- WRITE TO/READ FROM BUFFER
+void multiplex_write(Multiplex * c, unsigned char channelId, char * data, int offset, int length) {
     if (!multiplex_reallocate_channel(c, channelId, length)) return;
     else {
         ChannelBuffer * buf = c->channels[channelId];
@@ -97,8 +101,24 @@ static void multiplex_buffer(MultiplexContext * c, unsigned char channelId, char
     }
 }
 
+int multiplex_read(Multiplex * c, int channelId, char * dst, int offset, int length) {
+    if (c == 0 || c->channels[channelId] == 0) return CHANNEL_CLOSED;
+    else {
+        ChannelBuffer * buf = c->channels[channelId];
+        int copyLen = length;
+        if (buf == 0) return CHANNEL_IGNORED;
+        if (buf->length < length) copyLen = buf->length;
+        memcpy(dst + offset, buf->data + buf->offset, copyLen);
+        buf->offset += copyLen;
+        buf->length -= copyLen;
+        buf->newData -= copyLen;
+        if (buf->newData < 0) buf->newData = 0;
+        return copyLen;
+    }
+}
+
 // -- READ FIXED LENGTH
-static int multiplex_read_pipe(int pipe, int timeoutMs, char * buffer, int length) {
+static int multiplex_read_data(int pipe, int timeoutMs, char * buffer, int length) {
     int position = 0, bytesRead = 0, selectResult = -1;
     struct timeval timeout;
     fd_set fds;
@@ -122,7 +142,7 @@ static int multiplex_read_pipe(int pipe, int timeoutMs, char * buffer, int lengt
 }
 
 // -- READ FROM PIPE (returns channel ID as int32; -1 for ignored data, -255 for closed pipe)
-int multiplex_select(MultiplexContext * c, int pipe, int timeoutMs) {
+int multiplex_select(Multiplex * c, int pipe, int timeoutMs) {
     char prefixBuffer[5];
     int bytesRead = 0, dataLength = 0;
     unsigned char channelId = 0;
@@ -144,7 +164,7 @@ int multiplex_select(MultiplexContext * c, int pipe, int timeoutMs) {
     }
 
     //
-    bytesRead = multiplex_read_pipe(pipe, timeoutMs, prefixBuffer, 5); 
+    bytesRead = multiplex_read_data(pipe, timeoutMs, prefixBuffer, 5); 
     if (bytesRead != 5) return bytesRead;
 
     //
@@ -152,16 +172,16 @@ int multiplex_select(MultiplexContext * c, int pipe, int timeoutMs) {
     channelId = (unsigned char)prefixBuffer[4];
     {
         char buffer[dataLength - 1];
-        bytesRead = multiplex_read_pipe(pipe, timeoutMs, buffer, dataLength - 1);
+        bytesRead = multiplex_read_data(pipe, timeoutMs, buffer, dataLength - 1);
         if (bytesRead != dataLength - 1) return bytesRead;
         if (c->channels[channelId] == 0) return CHANNEL_IGNORED;
-        multiplex_buffer(c, channelId, buffer, 0, dataLength - 1);
+        multiplex_write(c, channelId, buffer, 0, dataLength - 1);
     }
     return channelId;
 }
 
 // -- RECEIVE
-int multiplex_receive(MultiplexContext * c,
+int multiplex_receive(Multiplex * c,
                       int pipe,
                       int timeoutMs,
                       int channelId,
@@ -210,17 +230,17 @@ int multiplex_send(int pipe, int channelId, char const * src, int length) {
 }
 
 // -- ACCESS
-int multiplex_length(MultiplexContext * c, int channelId) {
+int multiplex_length(Multiplex * c, int channelId) {
     if (c == 0 || c->channels[channelId] == 0) return -1;
     return c->channels[channelId]->length;
 }
 
-int multiplex_last_received(MultiplexContext * c, int channelId) {
+int multiplex_last_received(Multiplex * c, int channelId) {
     if (c == 0 || c->channels[channelId] == 0) return 0;
     return c->channels[channelId]->newData;
 }
 
-char const * multiplex_get(MultiplexContext * c, int channelId) {
+char const * multiplex_get(Multiplex * c, int channelId) {
     if (c == 0 || c->channels[channelId] == 0) return 0;
     else {
         ChannelBuffer * buf = c->channels[channelId];
@@ -228,7 +248,7 @@ char const * multiplex_get(MultiplexContext * c, int channelId) {
     }
 }
 
-char * multiplex_copy(MultiplexContext * c, int channelId, int offset, int length) {
+char * multiplex_copy(Multiplex * c, int channelId, int offset, int length) {
     if (c == 0 || c->channels[channelId] == 0) return 0;
     else {
         ChannelBuffer * buf = c->channels[channelId];
@@ -241,23 +261,7 @@ char * multiplex_copy(MultiplexContext * c, int channelId, int offset, int lengt
     }
 }
 
-int multiplex_read(MultiplexContext * c, int channelId, char * dst, int length) {
-    if (c == 0 || c->channels[channelId] == 0) return CHANNEL_CLOSED;
-    else {
-        ChannelBuffer * buf = c->channels[channelId];
-        int copyLen = length;
-        if (buf == 0) return CHANNEL_IGNORED;
-        if (buf->length < length) copyLen = buf->length;
-        memcpy(dst, buf->data + buf->offset, copyLen);
-        buf->offset += copyLen;
-        buf->length -= copyLen;
-        buf->newData -= copyLen;
-        if (buf->newData < 0) buf->newData = 0;
-        return copyLen;
-    }
-}
-
-void multiplex_clear(MultiplexContext * c, int channelId) {
+void multiplex_clear(Multiplex * c, int channelId) {
     if (c == 0 || c->channels[channelId] == 0) return;
     else {
         ChannelBuffer * buf = c->channels[channelId];
