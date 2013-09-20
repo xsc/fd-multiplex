@@ -44,14 +44,6 @@
 #define CHANNEL_TIMEOUT -77
 #define CHANNEL_CLOSED  -1
 
-typedef struct ChannelBuffer {
-    char * data;    // receive buffer
-    int offset;     // current read offset
-    int length;     // current read length
-    int capacity;   // capacity of receive buffer
-    char newData;   // 0 = no new data since last 'select'
-} ChannelBuffer;
-
 typedef struct Multiplex {
     int fd;
     struct ChannelBuffer * channels[256];  // O(1) lookup for channels
@@ -62,13 +54,13 @@ Multiplex * multiplex_new(int fd);
 void multiplex_activate_channel(Multiplex * c, unsigned char channelId, int initialBufferSize);
 
 // -- send data; returns result of 'write'
-int multiplex_send(int pipe, int channelId, char const * src, int length);
+int multiplex_send(Multiplex * c, int channelId, char const * src, int length);
 
 // -- select channel; returns the channel ID (>= 0) or a status code (< 0)
-int multiplex_select(Multiplex * c, int pipe, int timeoutMs);
+int multiplex_select(Multiplex * c, int timeoutMs);
 
 // -- receive data with timeout
-int multiplex_receive(Multiplex * c, int pipe, int timeoutMs, int channelId, char * dst, int length);
+int multiplex_receive(Multiplex * c, int timeoutMs, int channelId, char * dst, int length);
 
 // -- get length of channel buffer
 int multiplex_length(Multiplex * c, int channelId);
@@ -83,7 +75,7 @@ char const * multiplex_get(Multiplex * c, int channelId);
 char * multiplex_copy(Multiplex * c, int channelId, int offset, int length);
 
 // -- write to/read from channel buffer
-void multiplex_write(Multiplex * c, unsigned char channelId, char * data, int offset, int length) {
+void multiplex_write(Multiplex * c, unsigned char channelId, char * data, int offset, int length);
 int multiplex_read(Multiplex * c, int channelId, char * dst, int offset, int length);
 
 // -- clear buffer

@@ -27,6 +27,15 @@
 #include <fcntl.h>
 #include "multiplex.h"
 
+// -- Buffer Structure
+typedef struct ChannelBuffer {
+    char * data;    // receive buffer
+    int offset;     // current read offset
+    int length;     // current read length
+    int capacity;   // capacity of receive buffer
+    char newData;   // 0 = no new data since last 'select'
+} ChannelBuffer;
+
 // -- CREATE
 Multiplex * multiplex_new(int fd) {
     Multiplex * m = (Multiplex *)calloc(1, sizeof(Multiplex));
@@ -118,22 +127,22 @@ int multiplex_read(Multiplex * c, int channelId, char * dst, int offset, int len
 }
 
 // -- READ FIXED LENGTH
-static int multiplex_read_data(int pipe, int timeoutMs, char * buffer, int length) {
+static int _fd_read(int fd, int timeoutMs, char * buffer, int length) {
     int position = 0, bytesRead = 0, selectResult = -1;
     struct timeval timeout;
     fd_set fds;
 
     while (position < length) {
         FD_ZERO(&fds);
-        FD_SET(pipe, &fds);
+        FD_SET(fd, &fds);
         timeout.tv_sec = timeoutMs / 1000;
         timeout.tv_usec = (timeoutMs % 1000) * 1000;
 
-        selectResult = select(pipe + 1, &fds, (fd_set *)0, (fd_set *)0, &timeout);
+        selectResult = select(fd + 1, &fds, (fd_set *)0, (fd_set *)0, &timeout);
         if (selectResult == 0) return CHANNEL_TIMEOUT;
 
-        if (FD_ISSET(pipe,&fds)) {
-            bytesRead = read(pipe, buffer + position, length - position);
+        if (FD_ISSET(fd,&fds)) {
+            bytesRead = read(fd, buffer + position, length - position);
             if (bytesRead <= 0) return CHANNEL_CLOSED;
             else position += bytesRead;
         }
@@ -142,7 +151,7 @@ static int multiplex_read_data(int pipe, int timeoutMs, char * buffer, int lengt
 }
 
 // -- READ FROM PIPE (returns channel ID as int32; -1 for ignored data, -255 for closed pipe)
-int multiplex_select(Multiplex * c, int pipe, int timeoutMs) {
+int multiplex_select(Multiplex * c, int timeoutMs) {
     char prefixBuffer[5];
     int bytesRead = 0, dataLength = 0;
     unsigned char channelId = 0;
@@ -164,7 +173,7 @@ int multiplex_select(Multiplex * c, int pipe, int timeoutMs) {
     }
 
     //
-    bytesRead = multiplex_read_data(pipe, timeoutMs, prefixBuffer, 5); 
+    bytesRead = _fd_read(c->fd, timeoutMs, prefixBuffer, 5); 
     if (bytesRead != 5) return bytesRead;
 
     //
@@ -172,7 +181,7 @@ int multiplex_select(Multiplex * c, int pipe, int timeoutMs) {
     channelId = (unsigned char)prefixBuffer[4];
     {
         char buffer[dataLength - 1];
-        bytesRead = multiplex_read_data(pipe, timeoutMs, buffer, dataLength - 1);
+        bytesRead = _fd_read(c->fd, timeoutMs, buffer, dataLength - 1);
         if (bytesRead != dataLength - 1) return bytesRead;
         if (c->channels[channelId] == 0) return CHANNEL_IGNORED;
         multiplex_write(c, channelId, buffer, 0, dataLength - 1);
@@ -182,7 +191,6 @@ int multiplex_select(Multiplex * c, int pipe, int timeoutMs) {
 
 // -- RECEIVE
 int multiplex_receive(Multiplex * c,
-                      int pipe,
                       int timeoutMs,
                       int channelId,
                       char * dst,
@@ -208,16 +216,16 @@ int multiplex_receive(Multiplex * c,
     }
 
     // Receive on the given Channel
-    receiveId = multiplex_select(c, pipe, 2000);
+    receiveId = multiplex_select(c, timeoutMs);
     if (receiveId < 0) return receiveId;
     if (receiveId != channelId) return CHANNEL_IGNORED;
 
     // Copy from ChannelBuffer
-    return multiplex_read(c, channelId, dst, length);
+    return multiplex_read(c, channelId, dst, 0, length);
 }
 
 // -- SEND
-int multiplex_send(int pipe, int channelId, char const * src, int length) {
+int multiplex_send(Multiplex * c, int channelId, char const * src, int length) {
     const int len = length + 1;
     char buffer[5 + length];
     buffer[0] = (char)((len >> 24) & 0xFF);
@@ -226,7 +234,7 @@ int multiplex_send(int pipe, int channelId, char const * src, int length) {
     buffer[3] = (char)(len & 0xFF);
     buffer[4] = (char)(channelId & 0xFF);
     memcpy(buffer + 5, src, length);
-    return write(pipe, buffer, 5 + length);
+    return write(c->fd, buffer, 5 + length);
 }
 
 // -- ACCESS
