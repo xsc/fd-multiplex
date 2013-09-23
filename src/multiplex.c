@@ -27,7 +27,31 @@
 #include <fcntl.h>
 #include "multiplex.h"
 
-// -- Buffer Structure
+// ----------------------------------------------------------------------
+//
+//   CONCEPT
+//
+// ----------------------------------------------------------------------
+// We assume that packet fragments arrive in-order on the given file
+// descriptor. By prefixing a packet with 4 bytes of length (aligned
+// right, zero left-padded, includes length of channel ID) and a single 
+// byte containing the channel ID, we can reassemble the packet and
+// decide which channel it belongs to.
+//
+// Channels have to be activated before use, creating a receive buffer
+// that is dynamically extended and reduced when needed. Using a
+// blocking 'select' function (with a timeout), we can retrieve the
+// ID of a channel that has new data available.
+//
+// Error and status codes (e.g. "data was received on a channel that
+// is not active") are negative, while channel IDs are positive or zero.
+
+// ----------------------------------------------------------------------
+//
+//   UTILS
+//
+// ----------------------------------------------------------------------
+// -- BUFFER
 typedef struct ChannelBuffer {
     char * data;    // receive buffer
     int offset;     // current read offset
@@ -67,6 +91,11 @@ static int multiplex_lock_channel(Multiplex * c, unsigned char channelId) {
     return 0;
 }
 
+// ----------------------------------------------------------------------
+//
+//   BASICS
+//
+// ----------------------------------------------------------------------
 // -- CREATE
 Multiplex * multiplex_new(int fd) {
     Multiplex * m = (Multiplex *)calloc(1, sizeof(Multiplex));
@@ -125,7 +154,13 @@ void multiplex_disable(Multiplex * c, unsigned char channelId) {
     }
 }
 
-// -- REALLOCATE BUFFER
+// ----------------------------------------------------------------------
+//
+//   REALLOCATION
+//
+// ----------------------------------------------------------------------
+// We double the buffer size if necessary, and we reduce it by at least
+// half if less than 25% is filled.
 static int _reallocate_channel(Multiplex * c, unsigned char channelId, int additionalDataSize) {
     if (c == 0 || c->channels[channelId] == 0) return 0;
     else {

@@ -20,22 +20,6 @@
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-// MULTIPLEXING OVER A SINGLE PIPE
-// -------------------------------
-// By prefixing each incoming packet with its length and requiring the
-// first byte of the payload to be a channel ID, as well as reyling on
-// only one sender (which might itself collect data from multiple 
-// senders), i.e. on fragments arriving in order, we can implement
-// a multiplexing scheme.
-//
-// First, we create a "Multiplex" that will contain receiver buffers
-// for each channel we want to demultiplex. We create said buffers by
-// 'activating' the channel.
-//
-// After that we can either run a 'select' (returns an active channel with new data)
-// or a 'receive' (retrieves the data from a given channel), supplying a timeout
-// (at least to select) which prevents infinite blocking.
-
 #ifndef MULTIPLEX_H
 #define MULTIPLEX_H
 
