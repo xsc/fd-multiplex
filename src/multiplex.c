@@ -51,16 +51,6 @@
 //   UTILS
 //
 // ----------------------------------------------------------------------
-// -- BUFFER
-typedef struct ChannelBuffer {
-    char * data;    // receive buffer
-    int offset;     // current read offset
-    int length;     // current read length
-    int capacity;   // capacity of receive buffer
-    int initial;    // minimum capacity
-    int newData;    // 0 = no new data since last 'select'
-} ChannelBuffer;
-
 // -- MUTEX
 static int multiplex_lock(Multiplex * c) {
     if (c == 0) return 1;

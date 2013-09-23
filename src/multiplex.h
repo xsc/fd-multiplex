@@ -32,6 +32,15 @@
 #include <pthread.h>
 #endif
 
+typedef struct ChannelBuffer {
+    char * data;    // receive buffer
+    int offset;     // current read offset
+    int length;     // current read length
+    int capacity;   // capacity of receive buffer
+    int initial;    // minimum capacity
+    int newData;    // 0 = no new data since last 'select'
+} ChannelBuffer;
+
 typedef struct Multiplex {
     int fd;                                // file descriptor
     struct ChannelBuffer * channels[256];  // O(1) lookup for channels
