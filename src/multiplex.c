@@ -444,8 +444,7 @@ char * multiplex_strdup(Multiplex * c, unsigned char channelId) {
     else {
         ChannelBuffer * buf = c->channels[channelId];
         char * tmp = (char *)calloc(buf->length + 1, sizeof(char));
-        if (tmp == 0) return 0;
-        memcpy(tmp, buf->data + buf->offset, buf->length);
+        if (tmp != 0) memcpy(tmp, buf->data + buf->offset, buf->length);
         multiplex_unlock(c);
         return tmp;
     }
