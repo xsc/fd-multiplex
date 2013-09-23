@@ -12,7 +12,7 @@ int main(void) {
         ch = rand()%256;
         sprintf(buffer, "Hello on Channel %d.", ch);
         multiplex_send(m, ch, buffer, strlen(buffer));
-        sleep(rand()%3 + 1);
+        usleep(rand()%1000000);
     }
 
     return 0;

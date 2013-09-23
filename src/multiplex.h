@@ -44,43 +44,55 @@
 #define CHANNEL_TIMEOUT -77
 #define CHANNEL_CLOSED  -1
 
+#ifndef NO_MUTEX
+#include <pthread.h>
+#endif
+
 typedef struct Multiplex {
-    int fd;
+    int fd;                                // file descriptor
     struct ChannelBuffer * channels[256];  // O(1) lookup for channels
+#ifndef NO_MUTEX
+    pthread_mutex_t mutex;                 // for exclusive access
+#endif
 } Multiplex;
 
 // Multiplexing Operations (these are not thread-safe!)
 Multiplex * multiplex_new(int fd);
-void multiplex_activate_channel(Multiplex * c, unsigned char channelId, int initialBufferSize);
+void multiplex_enable(Multiplex * c, unsigned char channelId, int initialBufferSize);
+void multiplex_enable_range(Multiplex * c, unsigned char minChannelId, unsigned char maxChannelId, int initialBufferSize);
+void multiplex_disable(Multiplex * c, unsigned char channelId);
 
 // -- send data; returns result of 'write'
-int multiplex_send(Multiplex * c, int channelId, char const * src, int length);
-int multiplex_send_string(Multiplex * c, int channelId, char const * str);
+int multiplex_send(Multiplex * c, unsigned char channelId, char const * src, int length);
+int multiplex_send_string(Multiplex * c, unsigned char channelId, char const * str);
 
 // -- select channel; returns the channel ID (>= 0) or a status code (< 0)
 int multiplex_select(Multiplex * c, int timeoutMs);
 
 // -- receive data with timeout
-int multiplex_receive(Multiplex * c, int timeoutMs, int channelId, char * dst, int offset, int length);
+int multiplex_receive(Multiplex * c, int timeoutMs, unsigned char channelId, char * dst, int offset, int length);
 
 // -- get length of channel buffer
-int multiplex_length(Multiplex * c, int channelId);
+int multiplex_length(Multiplex * c, unsigned char channelId);
 
 // -- get length of data received in last select
-int multiplex_last_received(Multiplex * c, int channelId);
+int multiplex_last_received(Multiplex * c, unsigned char channelId);
 
 // -- get channel buffer
-char const * multiplex_get(Multiplex * c, int channelId);
+char const * multiplex_get(Multiplex * c, unsigned char channelId);
 
 // -- create copy of (part of) channel buffer
-char * multiplex_copy(Multiplex * c, int channelId, int offset, int length);
-char * multiplex_copy_all(Multiplex * c, int channelId);
+char * multiplex_strdup(Multiplex * c, unsigned char channelId);
 
 // -- write to/read from channel buffer
 void multiplex_write(Multiplex * c, unsigned char channelId, char * data, int offset, int length);
-int multiplex_read(Multiplex * c, int channelId, char * dst, int offset, int length);
+int multiplex_read(Multiplex * c, unsigned char channelId, char * dst, int offset, int length);
+int multiplex_copy(Multiplex * c, unsigned char channelId, char * dst, int offset, int length);
 
 // -- clear buffer
-void multiplex_clear(Multiplex * c, int channelId);
+void multiplex_clear(Multiplex * c, unsigned char channelId);
+
+// -- remove select status, keep data
+void multiplex_ignore(Multiplex * c, unsigned char channelId);
 
 #endif
