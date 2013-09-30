@@ -36,7 +36,26 @@ multiplex_send(m, channelId, buffer, length);
 
 ## Receiver
 
-TODO
+Before data can be received from a channel, it has to be enabled using `multiplex_enable` or
+`multiplex_enable_range`. Afterwards, `multiplex_receive` can wait for data destined for a 
+given channel ID:
+
+```c
+#include <multiplex.h>
+...
+Multiplex * m = multiplex_new(sockfd);
+int r = 0;
+char buffer[1024];
+
+while (r != CHANNEL_CLOSED) {
+    r = multiplex_receive(m, timeout, channelId, buffer, 0, 1024);
+    if (r >= 0) { /* Process r bytes of Data */ }
+}
+...
+```
+
+The receive call returns either the number of bytes read, `CHANNEL_CLOSED`, `CHANNEL_TIMEOUT`
+or `CHANNEL_IGNORED` (if data was received but on a different channel).
 
 ## License
 
